@@ -1,0 +1,20 @@
+#!/bin/bash
+HOME=$HOME
+APP_BASEDIR=$(cd $(dirname $0)/../ && pwd)
+APP_PERL=$(echo -n $(cat $APP_BASEDIR/.app_perl | head -n 1))
+APP_GIT="git --git-dir=$APP_BASEDIR/.git"
+
+p() {
+    _color=$1; shift
+    _msg="$*"
+    echo "[${_color}m${_msg}[0m"
+}
+
+p_log() {
+    _color=$1; shift
+    _msg="$*"
+    p $_color $_msg
+    if [ ! "$APP_LOGFILE" = "" ]; then
+        echo "$_msg" >> $APP_LOGFILE
+    fi
+}

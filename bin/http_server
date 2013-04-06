@@ -1,4 +1,6 @@
 #!/bin/bash
+source $(dirname $0)/_init
+
 HOME=/Users/issm
 BASEDIR=$(cd $(dirname $0)/../ && pwd)
 LOGDIR=$BASEDIR/var/log
@@ -7,18 +9,17 @@ SERVER_HOST=$HOST
 SERVER_PORT=5011
 SERVER_WORKERS=8
 SERVER_MAX_REQUESTS=1000
-SERVER_PIDFILE=$BASEDIR/var/run/http_server.pid
-SERVER_STATUSFILE=$BASEDIR/var/run/http_server.status
+SERVER_PIDFILE=$APP_BASEDIR/var/run/http_server.pid
+SERVER_STATUSFILE=$APP_BASEDIR/var/run/http_server.status
 
-MODE=$1
-
-
-_main()
+main()
 {
-    __echo_and_log "source $HOME/perl5/perlbrew/etc/bashrc"
+    MODE=$1
+    APP_LOGFILE=$APP_BASEDIR/log/error_log
+    p_log 33 "source $HOME/perl5/perlbrew/etc/bashrc"
     source $HOME/perl5/perlbrew/etc/bashrc
-    __echo_and_log "perlbrew use $(echo -n $(head -n 1 $BASEDIR/.app_perl))"
-    perlbrew use $(echo -n $(head -n 1 $BASEDIR/.app_perl))
+    p_log 33 "perlbrew use $APP_PERL"
+    perlbrew use $APP_PERL
 
     ### env: PLACK_ENV
     if [ "$PLACK_ENV" = "" ]; then
@@ -32,34 +33,30 @@ _main()
         PERL_FNS_NO_OPT=0
     fi
 
-    __echo_and_log "PLACK_ENV:       $PLACK_ENV"
-    __echo_and_log "PERL_FNS_NO_OPT: $PERL_FNS_NO_OPT"
+    p_log 33 "PLACK_ENV:       $PLACK_ENV"
+    p_log 33 "PERL_FNS_NO_OPT: $PERL_FNS_NO_OPT"
 
     ###
     case $MODE in
         "start")
-            __start $*
+            _start $*
             ;;
         "stop")
-            __stop
+            _stop
             ;;
         "restart")
-            __restart
+            _restart
             ;;
         * )
-            __start $*
+            p 31 "mode \"$MODE\" is not supported."
+            exit 1
     esac
     exit 0
 }
 
-__echo_and_log() {
-    echo "[33m$1[0m" > /dev/stdout
-    echo "$1" >> $LOGDIR/error_log
-}
-
-__start() {
+_start() {
     if [ -f $SERVER_PIDFILE ]; then
-        echo "[31mhttp_server has been already started: pid  $(cat $SERVER_PIDFILE)[0m"
+        p 31 "http_server has been already started: pid  $(cat $SERVER_PIDFILE)"
         exit 1
     fi
 
@@ -70,17 +67,17 @@ __start() {
 
     PSGI_FILE=app.psgi
 
-    echo "[32mchesking syntax...[0m"
-    echo "[35mcarton exec -- perl -c $PSGI_FILE[0m"
+    p 32 "chesking syntax..."
+    p 35 "carton exec -- perl -c $PSGI_FILE"
     carton exec -- perl -c $PSGI_FILE
     if [ $? = 0 ]; then
-        echo "[32mok.[0m"
+        p 32 "ok."
     else
-        echo "[31mfailed, stop.[0m"
+        p 31 "filed, stop."
         exit 1
     fi
 
-    printf "[32mstarting http_server...[0m"
+    p 32 "starting http_server..."
 
     env \
         PERL_FNS_NO_OPT=$PERL_FNS_NO_OPT \
@@ -104,16 +101,16 @@ __start() {
         2>> $LOGDIR/error_log \
         &
 
-    echo "[32m...done.[0m"
+    p 32 "...done."
 }
 
-__stop() {
+_stop() {
     if [ ! -f $SERVER_PIDFILE ]; then
-        echo "[31mhttp_server is not running.[0m"
+        p 31 "http_server is not running."
         exit 1
     fi
 
-    printf "[32mstopping http_server...[0m"
+    p 32 "stopping http_server..."
 
     kill -TERM $(cat $SERVER_PIDFILE)
 
@@ -125,16 +122,16 @@ __stop() {
         rm $SERVER_STATUSFILE
     fi
 
-    echo "[32m...done.[0m"
+    p 32 "...done."
 }
 
-__restart() {
+_restart() {
     if [ ! -f $SERVER_PIDFILE ]; then
-        echo "[31mhttp_server is not running.[0m"
+        p 31 "http_server is not running."
         exit 1
     fi
 
-    printf "[32mrestarting http_server...[0m"
+    p 32 "restarting http_server..."
 
     carton exec -- \
     start_server \
@@ -142,8 +139,7 @@ __restart() {
         --pid-file=$SERVER_PIDFILE \
         --status-file=$SERVER_STATUSFILE
 
-    echo "[32m...done.[0m"
+    p 32 "...done."
 }
 
-
-_main $*
+main $*

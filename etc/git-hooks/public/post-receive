@@ -1,16 +1,5 @@
 #!/bin/bash
-HOME=/home/iwata
-APP_BASEDIR=$HOME/www/mihon
-APP_PERL=$(echo -n $(head -n 1 $APP_BASEDIR/.app_perl))
-APP_REMOTE=origin
-APP_BRANCH=origin/public
-APP_GIT="$HOME/local/bin/git --git-dir=$APP_BASEDIR/.git"
-
-p() {
-    _color=$1; shift
-    _msg="$*"
-    echo "[${_color}m${_msg}[0m"
-}
+source $(dirname $0)/_init
 
 ### cd
 p 35 "cd $APP_BASEDIR"
@@ -35,8 +24,7 @@ perlbrew use $APP_PERL
 
 ### update CPAN modules
 p 35 "carton install --cached"
-PATH=$HOME/local/mysql55/bin:$PATH \
-    carton install --cached
+carton install --cached
 p 35 "git checkout -q carton.lock"
 $APP_GIT checkout -q carton.lock
 

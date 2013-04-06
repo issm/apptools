@@ -1,0 +1,24 @@
+#!/bin/bash
+HOME=/home/www
+APP_BASEDIR=/var/app/myapp
+APP_PERL=$(echo -n $(head -n 1 $APP_BASEDIR/.app_perl))
+APP_REMOTE=origin
+APP_BRANCH=origin/public
+APP_GIT="$HOME/local/bin/git --git-dir=$APP_BASEDIR/.git"
+
+PATH=$HOME/local/mysql55/bin:$PATH
+
+p() {
+    _color=$1; shift
+    _msg="$*"
+    echo "[${_color}m${_msg}[0m"
+}
+
+p_log() {
+    _color=$1; shift
+    _msg="$*"
+    p $_color $_msg
+    if [ ! "$APP_LOGFILE" = "" ]; then
+        echo "$_msg" >> $APP_LOGFILE
+    fi
+}
