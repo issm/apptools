@@ -1,0 +1,54 @@
+#!/bin/bash
+MODE=$1
+BASEDIR=$(cd $(dirname $0)/.. && pwd)
+APP_PERL=$(echo -n $(cat $BASEDIR/.app_perl | head -n 1))
+PLACK_ENV=test
+
+usage() {
+    cat << USAGE
+Usage:
+    $0 <mode>
+
+<mode>:
+    util             -- Mihon::Util
+    xslate_functions -- tests Mihon::XslateBridge
+USAGE
+}
+
+log() {
+    color=$1
+    shift
+    message="$*"
+    echo "[${color}m${message}[0m"
+}
+
+main () {
+    if [ "$MODE" == "" ]; then
+        usage
+        exit 1
+    fi
+
+    source $HOME/perl5/perlbrew/etc/bashrc
+    perlbrew use $APP_PERL
+
+    log 37 "Perl:      $APP_PERL"
+    log 37 "MODE:      $MODE"
+    log 37 "PLACK_ENV: $PLACK_ENV"
+
+    RCFILE=$BASEDIR/t/rc/$MODE
+
+    if [ ! -f $RCFILE ]; then
+        log 31 "mode \"${MODE}\" is not supported."
+        exit 1
+    fi
+
+    CMD_CD="cd $BASEDIR"
+    log 35 $CMD_CD
+    $CMD_CD
+
+    CMD_PROVE="carton exec -Ilib -It/lib -- prove --norc --rc=$RCFILE"
+    log 35 $CMD_PROVE
+    PLACK_ENV=$PLACK_ENV $CMD_PROVE
+}
+
+main $*

@@ -1,0 +1,149 @@
+#!/bin/bash
+HOME=/Users/issm
+BASEDIR=$(cd $(dirname $0)/../ && pwd)
+LOGDIR=$BASEDIR/var/log
+
+SERVER_HOST=$HOST
+SERVER_PORT=5011
+SERVER_WORKERS=8
+SERVER_MAX_REQUESTS=1000
+SERVER_PIDFILE=$BASEDIR/var/run/http_server.pid
+SERVER_STATUSFILE=$BASEDIR/var/run/http_server.status
+
+MODE=$1
+
+
+_main()
+{
+    __echo_and_log "source $HOME/perl5/perlbrew/etc/bashrc"
+    source $HOME/perl5/perlbrew/etc/bashrc
+    __echo_and_log "perlbrew use $(echo -n $(head -n 1 $BASEDIR/.app_perl))"
+    perlbrew use $(echo -n $(head -n 1 $BASEDIR/.app_perl))
+
+    ### env: PLACK_ENV
+    if [ "$PLACK_ENV" = "" ]; then
+        PLACK_ENV=development
+    fi
+
+    ### env: PERL_FNS_NO_OPT
+    if [ $(uname | awk '{print($1)}') = "Darwin" ]; then
+        PERL_FNS_NO_OPT=1
+    else
+        PERL_FNS_NO_OPT=0
+    fi
+
+    __echo_and_log "PLACK_ENV:       $PLACK_ENV"
+    __echo_and_log "PERL_FNS_NO_OPT: $PERL_FNS_NO_OPT"
+
+    ###
+    case $MODE in
+        "start")
+            __start $*
+            ;;
+        "stop")
+            __stop
+            ;;
+        "restart")
+            __restart
+            ;;
+        * )
+            __start $*
+    esac
+    exit 0
+}
+
+__echo_and_log() {
+    echo "[33m$1[0m" > /dev/stdout
+    echo "$1" >> $LOGDIR/error_log
+}
+
+__start() {
+    if [ -f $SERVER_PIDFILE ]; then
+        echo "[31mhttp_server has been already started: pid  $(cat $SERVER_PIDFILE)[0m"
+        exit 1
+    fi
+
+    PLACKUP_OPT_R=""
+    if [ "$PLACK_ENV" = "development" ]; then
+        PLACKUP_OPT_R="-R config"
+    fi
+
+    PSGI_FILE=app.psgi
+
+    echo "[32mchesking syntax...[0m"
+    echo "[35mcarton exec -- perl -c $PSGI_FILE[0m"
+    carton exec -- perl -c $PSGI_FILE
+    if [ $? = 0 ]; then
+        echo "[32mok.[0m"
+    else
+        echo "[31mfailed, stop.[0m"
+        exit 1
+    fi
+
+    printf "[32mstarting http_server...[0m"
+
+    env \
+        PERL_FNS_NO_OPT=$PERL_FNS_NO_OPT \
+    carton exec -- \
+    start_server \
+        --interval=3 \
+        --port=$SERVER_PORT \
+        --pid-file=$SERVER_PIDFILE \
+        --status-file=$SERVER_STATUSFILE \
+        -- \
+    plackup \
+        -E $PLACK_ENV \
+        -s Starman \
+        --host=$SERVER_HOST \
+        --port=$SERVER_PORT \
+        --workers $SERVER_WORKERS \
+        --max-requests $SERVER_MAX_REQUESTS \
+        --access-log $LOGDIR/access_log \
+        $PLACKUP_OPT_R \
+        $PSGI_FILE \
+        2>> $LOGDIR/error_log \
+        &
+
+    echo "[32m...done.[0m"
+}
+
+__stop() {
+    if [ ! -f $SERVER_PIDFILE ]; then
+        echo "[31mhttp_server is not running.[0m"
+        exit 1
+    fi
+
+    printf "[32mstopping http_server...[0m"
+
+    kill -TERM $(cat $SERVER_PIDFILE)
+
+    if [ -f $SERVER_PIDFILE ]; then
+        rm $SERVER_PIDFILE
+    fi
+
+    if [ -f $SERVER_STATUSFILE ]; then
+        rm $SERVER_STATUSFILE
+    fi
+
+    echo "[32m...done.[0m"
+}
+
+__restart() {
+    if [ ! -f $SERVER_PIDFILE ]; then
+        echo "[31mhttp_server is not running.[0m"
+        exit 1
+    fi
+
+    printf "[32mrestarting http_server...[0m"
+
+    carton exec -- \
+    start_server \
+        --restart \
+        --pid-file=$SERVER_PIDFILE \
+        --status-file=$SERVER_STATUSFILE
+
+    echo "[32m...done.[0m"
+}
+
+
+_main $*

@@ -1,0 +1,56 @@
+#!/bin/bash
+HOME=/home/iwata
+APP_BASEDIR=$HOME/www/mihon
+APP_PERL=$(echo -n $(head -n 1 $APP_BASEDIR/.app_perl))
+APP_REMOTE=origin
+APP_BRANCH=origin/public
+APP_GIT="$HOME/local/bin/git --git-dir=$APP_BASEDIR/.git"
+
+p() {
+    _color=$1; shift
+    _msg="$*"
+    echo "[${_color}m${_msg}[0m"
+}
+
+### cd
+p 35 "cd $APP_BASEDIR"
+cd $APP_BASEDIR
+
+### update working tree
+p 35 "git fetch $APP_REMOTE"
+$APP_GIT fetch $APP_REMOTE
+p 35 "git checkout -q $APP_BRANCH"
+$APP_GIT checkout -q $APP_BRANCH
+if [ $? -ne 0 ]; then
+    p 31 "checkout failed, exit."
+    exit 1
+fi
+$APP_GIT submodule update --init
+
+### switch perl
+p 35 "source $HOME/perl5/perlbrew/etc/bashrc"
+source $HOME/perl5/perlbrew/etc/bashrc
+p 35 "perlbrew use $APP_PERL"
+perlbrew use $APP_PERL
+
+### update CPAN modules
+p 35 "carton install --cached"
+PATH=$HOME/local/mysql55/bin:$PATH \
+    carton install --cached
+p 35 "git checkout -q carton.lock"
+$APP_GIT checkout -q carton.lock
+
+### migrate db
+p 35 "PLACK_ENV=deployment ./bin/migrate_db"
+PLACK_ENV=deployment ./bin/migrate_db
+
+### control httpd
+if [ -f $APP_BASEDIR/var/run/http_server.pid ]; then
+    p 35 "PLACK_ENV=deployment ./bin/http_server restart"
+    PLACK_ENV=deployment ./bin/http_server restart
+else
+    p 35 "PLACK_ENV=deployment ./bin/http_server start"
+    PLACK_ENV=deployment ./bin/http_server start
+fi
+
+exit 0

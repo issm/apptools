@@ -1,0 +1,8 @@
+#!/bin/bash
+HOME=/Users/issm
+APP_BASEDIR=$(cd $(dirname $0)/.. && pwd)
+
+source $HOME/perl5/perlbrew/etc/bashrc
+perlbrew use $(echo -n $(head -n 1 $APP_BASEDIR/.app_perl))
+
+carton exec -I$APP_BASEDIR/local/lib/perl5 -I$APP_BASEDIR/lib -- perl $@

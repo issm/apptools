@@ -1,0 +1,75 @@
+#!/bin/bash
+BASEDIR=$(cd $(dirname $0)/../ && pwd)
+GIT="git --git-dir=$BASEDIR/.git"
+
+MODE=$1
+REMOTE_NAME=
+BRANCH_NAME=
+
+if [ "$MODE" = "" ]; then
+    echo "Usage:"
+    echo "    $0 {dev|stage|public}"
+    exit 1
+fi
+echo [33mMODE: $MODE[0m
+
+_p() {
+    _color=$1; shift
+    _msg="$*"
+    echo "[${_color}m${_msg}[0m"
+}
+
+_rsync_git_hooks() {
+    _p 32 "msynchronizing git hooks..."
+    MODE=$1
+    REMOTE_NAME=$2
+    REMOTE_NAME_GREP="$1 "
+    REMOTE_REPOS=$($GIT config remote.$REMOTE_NAME.url)
+    if [ "$REMOTE_REPOS" = "" ]; then
+        _p 31 "No such remote: $REMOTE_NAME"
+        exit 1
+    fi
+    if [ ! -d $BASEDIR/etc/git-hooks/$MODE ]; then
+        _p 31 "No such directory: $BASEDIR/etc/git-hooks/$MODE"
+        exit 1
+    fi
+    RSYNC_SRC=$BASEDIR/etc/git-hooks/$MODE/
+    RSYNC_DST=$REMOTE_REPOS/hooks/
+    CMD_RSYNC="rsync -rtvp -e ssh $RSYNC_SRC $RSYNC_DST --delete-after"
+    _p 35 "$CMD_RSYNC"
+    $CMD_RSYNC
+}
+
+case $MODE in
+    "dev")
+        REMOTE_NAME="dev"
+        BRANCH_NAME="dev"
+        ;;
+    "stage")
+        REMOTE_NAME="stage"
+        BRANCH_NAME="stage"
+        ;;
+    "public")
+        REMOTE_NAME="public"
+        BRANCH_NAME="public"
+        ;;
+    *)
+        _p 31 "unsupported mode: $MODE"
+        exit 1
+esac
+_p 33 "REMOTE_NAME: $REMOTE_NAME"
+_p 33 "BRANCH_NAME: $BRANCH_NAME"
+if [ "$BRANCH_NAME" = "" ] ; then
+    _p 31 "no such branch: $BRANCH_NAME"
+    exit 1
+fi
+if [ "$REMOTE_NAME" = "" ] ; then
+    _p 31 "no such remote: $REMOTE_NAME"
+    exit 1
+fi
+
+_rsync_git_hooks $MODE $REMOTE_NAME
+
+cd $BASEDIR
+_p 35 "$GIT push -f $REMOTE_NAME $BRANCH_NAME"
+$GIT push -f $REMOTE_NAME $BRANCH_NAME
