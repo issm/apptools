@@ -1,0 +1,136 @@
+#!/usr/bin/env perl
+use 5.10.0;
+use warnings;
+use utf8;
+use FindBin;
+use Filesys::Notify::Simple;
+use Time::Piece;
+use File::Basename;
+use File::Temp qw/tempdir/;
+use File::Find;
+use File::Path;
+
+$ENV{PERL_FNS_NO_OPT} = 1;
+
+my ($app_name) = @ARGV;
+
+unless ( $app_name ) {
+    print << "...";
+Usage:
+    $0 <app_name>
+...
+    exit 1;
+}
+
+my $SCSS = 'scss -t compressed';
+
+my $basedir = "${FindBin::Bin}/..";  do 1 while ( $basedir =~ s!/[^./]+/\.\.!! );
+my $scssdir = "${basedir}/scss/${app_name}";
+my $cssdir  = "${basedir}/static/${app_name}/css";
+
+my $tempdir = tempdir( CLEANUP => 1 );
+my $stdout  = "$tempdir/stdout";
+my $stderr  = "$tempdir/stderr";
+
+my @dirs = (
+    "${basedir}/scss/${app_name}/inc",
+    "${basedir}/scss/${app_name}/p",
+);
+
+
+sub printlog {
+    my ($msg) = @_;
+    printf STDERR '[%s] %s', localtime->datetime, $msg;
+    print "\n";
+}
+
+sub find_scssfiles {
+    my (@dir) = @_;
+    my @ret;
+    File::Find::find(
+        sub {
+            my $f = $File::Find::name;
+            return  if File::Basename::basename($f) =~ /^(#|\.#)/;
+            return  if $f !~ /\.scss$/;
+            push @ret, $f;
+        },
+        @dir,
+    );
+    return @ret;
+}
+
+sub execute {
+    my ($cmd) = @_;
+    printlog "[35m$cmd[0m";
+    system("$cmd > $stdout 2> $stderr");
+    if ( $? ) {
+        my $out = do { local $/; open my $fh, '<', $stderr; <$fh> };
+        printf STDERR "[31m${out}[0m"  if $out;
+    }
+}
+
+
+my $TERM;
+for my $sig (qw/TERM INT/) {
+    $SIG{$sig} = sub {
+        printlog "SIG${sig} received.";
+        exit 1;
+    };
+}
+
+my $watcher = Filesys::Notify::Simple->new(\@dirs);
+
+printlog 'start watching.';
+while ( 1 ) {
+    $watcher->wait(
+        sub {
+            my @evs = grep {
+                $_->{basename} ne ''  &&  $_->{basename} !~ /^(#|\.#)/;
+            } map {
+                (my $name = $_->{path}) =~ s!${basedir}/scss/${app_name}!!;
+                $name =~ s!^/!!;
+                my ($type, $basename) = split m!/!, $name;
+                @$_{qw/name type basename/} = ( $name, $type, basename($basename // '', ('.scss')) );
+                $_;
+            } grep {
+                -f $_->{path};
+            }@_;
+            for my $ev ( @evs ) {
+                printlog sprintf( '-- %s', $ev->{name} );
+            }
+
+            my (@inc, @p);
+            for my $ev ( @evs ) {
+                push @inc, $ev  if $ev->{type} eq 'inc';
+                push @p, $ev    if $ev->{type} eq 'p';
+            }
+
+            if ( @p ) {
+                while ( my $ev = shift @p ) {
+                    my $src = "${scssdir}/$ev->{name}";
+                    (my $name = $ev->{name}) =~ s!\.scss!!;
+                    $name =~ s!p/!!;
+                    my $dst = "${cssdir}/${name}.css";
+                    File::Path::make_path( File::Basename::dirname($dst) )
+                        if ! -d File::Basename::dirname($dst);
+                    my $cmd = "$SCSS $src:$dst";
+                    execute($cmd);
+                }
+            }
+            elsif ( @inc ) {
+                my @f = find_scssfiles("$scssdir/p");
+                while ( my $f = shift @f ) {
+                    my $src = $f;
+                    (my $name = $f) =~ s!$scssdir/p/!!;
+                    $name =~ s/\.scss//;
+                    my $dst = "$cssdir/${name}.css";
+                    File::Path::make_path( File::Basename::dirname($dst) )
+                        if ! -d File::Basename::dirname($dst);
+                    my $cmd = "$SCSS $src:$dst";
+                    execute($cmd);
+                }
+            }
+        },
+    );
+}
+printlog 'done.';
