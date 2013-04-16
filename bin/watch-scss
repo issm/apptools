@@ -22,8 +22,6 @@ Usage:
     exit 1;
 }
 
-my $SCSS = 'scss -t compressed';
-
 my $basedir = "${FindBin::Bin}/..";  do 1 while ( $basedir =~ s!/[^./]+/\.\.!! );
 my $scssdir = "${basedir}/scss/${app_name}";
 my $cssdir  = "${basedir}/static/${app_name}/css";
@@ -31,6 +29,8 @@ my $cssdir  = "${basedir}/static/${app_name}/css";
 my $tempdir = tempdir( CLEANUP => 1 );
 my $stdout  = "$tempdir/stdout";
 my $stderr  = "$tempdir/stderr";
+
+my $SCSS = "scss -t compressed -I ${scssdir}";
 
 my @dirs = (
     "${basedir}/scss/${app_name}/inc",
