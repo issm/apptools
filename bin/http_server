@@ -73,7 +73,7 @@ _start() {
     if [ $? = 0 ]; then
         p 32 "ok."
     else
-        p 31 "filed, stop."
+        p 31 "failed, stop."
         exit 1
     fi
 
