@@ -74,8 +74,10 @@ sub compile {
         sprintf '%s/%s.coffee', $coffeedir, $_;
     } (@inc, $p);
 
-    my $cmd = "$COFFEE -j $dst -c @src";
-    execute($cmd);
+    if ( @src ) {
+        my $cmd = "$COFFEE -j $dst -c @src";
+        execute($cmd);
+    }
 }
 
 sub execute {
