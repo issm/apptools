@@ -2,4 +2,9 @@
 source $(dirname $0)/_init
 source $HOME/perl5/perlbrew/etc/bashrc
 perlbrew use $APP_PERL
+APP_PERL_BREWED="${PERLBREW_PERL}@${PERLBREW_LIB}"
+if [ "$APP_PERL" != "$APP_PERL_BREWED" -a "perl-$APP_PERL" != "$APP_PERL_BREWED" ]; then
+    p 31 "$APP_PERL: invalid perlbrew libset, check .app_perl"
+    exit 1
+fi
 carton exec -I$APP_BASEDIR/local/lib/perl5 -I$APP_BASEDIR/lib -- perl $@
